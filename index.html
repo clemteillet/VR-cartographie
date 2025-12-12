@@ -26,12 +26,42 @@
             text-align: center;
             z-index: 100;
         }
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            text-align: center;
+            z-index: 200;
+            font-size: 20px;
+        }
+        #loading button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        #loading button:hover {
+            background: #45a049;
+        }
     </style>
 </head>
 <body>
     <div id="container"></div>
     <div id="instructions">
         🖱️ Utilisez la souris pour regarder autour de vous
+    </div>
+    <div id="loading">
+        <div id="loadingText">Chargement de la vidéo...</div>
+        <button id="startBtn" style="display:none;">Cliquez pour démarrer</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -110,6 +140,11 @@
         }
 
         function loadVideo() {
+            let loadedCount = 0;
+            const loadingDiv = document.getElementById('loading');
+            const loadingText = document.getElementById('loadingText');
+            const startBtn = document.getElementById('startBtn');
+            
             // Créer 6 vidéos avec décalages temporels
             for (let i = 0; i < 6; i++) {
                 const video = document.createElement('video');
@@ -117,18 +152,40 @@
                 video.loop = true;
                 video.muted = true;
                 video.crossOrigin = 'anonymous';
+                video.playsInline = true;
                 
                 // Attendre que les métadonnées soient chargées
                 video.addEventListener('loadedmetadata', () => {
+                    loadedCount++;
+                    loadingText.textContent = `Chargement ${loadedCount}/6...`;
+                    
                     // Décalage : chaque face commence à un moment différent
                     video.currentTime = (i * 2) % video.duration;
-                    video.play().catch(err => {
-                        console.error('Erreur de lecture vidéo:', err);
-                        // Si l'autoplay est bloqué, attendre une interaction utilisateur
-                        document.addEventListener('click', () => {
-                            video.play();
-                        }, { once: true });
-                    });
+                    
+                    // Quand toutes les vidéos sont chargées
+                    if (loadedCount === 6) {
+                        // Essayer de démarrer automatiquement
+                        Promise.all(videos.map(v => v.play()))
+                            .then(() => {
+                                // Succès : masquer le message de chargement
+                                loadingDiv.style.display = 'none';
+                            })
+                            .catch(() => {
+                                // Échec (autoplay bloqué) : afficher le bouton
+                                loadingText.textContent = 'Vidéo prête !';
+                                startBtn.style.display = 'block';
+                                startBtn.onclick = () => {
+                                    videos.forEach(v => v.play());
+                                    loadingDiv.style.display = 'none';
+                                };
+                            });
+                    }
+                });
+                
+                video.addEventListener('error', (e) => {
+                    console.error('Erreur de chargement de la vidéo:', e);
+                    loadingText.textContent = 'Erreur: Vidéo introuvable (Composition3.mp4)';
+                    loadingText.style.color = '#ff6b6b';
                 });
                 
                 videos.push(video);

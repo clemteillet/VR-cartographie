@@ -25,6 +25,7 @@
             border-radius: 10px;
             text-align: center;
             z-index: 100;
+            max-width: 90%;
         }
         #loading {
             position: absolute;
@@ -57,7 +58,7 @@
 <body>
     <div id="container"></div>
     <div id="instructions">
-        🖱️ Utilisez la souris pour regarder autour de vous
+        🖱️ Souris pour regarder | 📱 Bougez votre téléphone
     </div>
     <div id="loading">
         <div id="loadingText">Chargement de la vidéo...</div>
@@ -71,6 +72,9 @@
         let currentRotationX = 0, currentRotationY = 0;
         let videos = [];
         let videoTextures = [];
+        let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        let deviceAlpha = 0, deviceBeta = 0, deviceGamma = 0;
+        let permissionGranted = false;
 
         // Chemin de votre vidéo sur GitHub
         const VIDEO_PATH = 'Composition3.mp4';
@@ -132,6 +136,11 @@
             // Events
             document.addEventListener('mousemove', onMouseMove, false);
             window.addEventListener('resize', onWindowResize, false);
+
+            // Demander les permissions pour les capteurs mobiles
+            if (isMobile) {
+                requestDeviceOrientation();
+            }
 
             // Charger automatiquement la vidéo
             loadVideo();
@@ -214,27 +223,84 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        function requestDeviceOrientation() {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+ nécessite une permission explicite
+                const loadingDiv = document.getElementById('loading');
+                const loadingText = document.getElementById('loadingText');
+                const startBtn = document.getElementById('startBtn');
+                
+                loadingText.textContent = 'Autoriser les capteurs de mouvement';
+                startBtn.style.display = 'block';
+                startBtn.textContent = 'Autoriser';
+                
+                startBtn.onclick = () => {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(response => {
+                            if (response === 'granted') {
+                                window.addEventListener('deviceorientation', onDeviceOrientation, false);
+                                permissionGranted = true;
+                                loadVideo();
+                            } else {
+                                loadingText.textContent = 'Permission refusée - utilisez la souris';
+                                setTimeout(() => {
+                                    loadingDiv.style.display = 'none';
+                                }, 2000);
+                            }
+                        })
+                        .catch(console.error);
+                };
+            } else if (window.DeviceOrientationEvent) {
+                // Android et anciens iOS
+                window.addEventListener('deviceorientation', onDeviceOrientation, false);
+                permissionGranted = true;
+            }
+        }
+
+        function onDeviceOrientation(event) {
+            deviceAlpha = event.alpha || 0; // Rotation autour de l'axe Z (0-360)
+            deviceBeta = event.beta || 0;   // Rotation autour de l'axe X (-180 à 180)
+            deviceGamma = event.gamma || 0; // Rotation autour de l'axe Y (-90 à 90)
+        }
+
         function animate() {
             requestAnimationFrame(animate);
 
             // Le cube reste fixe
             cube.rotation.set(0, 0, 0);
 
-            // Calculer les rotations cibles
-            const targetRotationY = -mouseX * Math.PI;
-            const targetRotationX = mouseY * Math.PI * 0.5;
+            // Si sur mobile avec permission et capteurs actifs
+            if (isMobile && permissionGranted && (deviceAlpha !== 0 || deviceBeta !== 0 || deviceGamma !== 0)) {
+                // Convertir les angles de l'appareil en rotation de caméra
+                const alpha = THREE.MathUtils.degToRad(deviceAlpha);
+                const beta = THREE.MathUtils.degToRad(deviceBeta);
+                const gamma = THREE.MathUtils.degToRad(deviceGamma);
 
-            // Interpolation smooth
-            currentRotationY += (targetRotationY - currentRotationY) * 0.1;
-            currentRotationX += (targetRotationX - currentRotationX) * 0.1;
+                // Appliquer les rotations du téléphone à la caméra
+                camera.rotation.x = beta - Math.PI / 2;
+                camera.rotation.y = alpha;
+                camera.rotation.z = -gamma;
+                
+                // Limiter la rotation verticale
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            } else {
+                // Mode souris (desktop ou mobile sans capteurs)
+                // Calculer les rotations cibles
+                const targetRotationY = -mouseX * Math.PI;
+                const targetRotationX = mouseY * Math.PI * 0.5;
 
-            // Appliquer les rotations
-            camera.rotation.y = currentRotationY;
-            camera.rotation.x = currentRotationX;
-            camera.rotation.z = 0;
+                // Interpolation smooth
+                currentRotationY += (targetRotationY - currentRotationY) * 0.1;
+                currentRotationX += (targetRotationX - currentRotationX) * 0.1;
 
-            // Limiter la rotation verticale
-            camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+                // Appliquer les rotations
+                camera.rotation.y = currentRotationY;
+                camera.rotation.x = currentRotationX;
+                camera.rotation.z = 0;
+
+                // Limiter la rotation verticale
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            }
 
             renderer.render(scene, camera);
         }

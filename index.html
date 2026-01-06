@@ -226,41 +226,42 @@
         function requestDeviceOrientation() {
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 // iOS 13+ nécessite une permission explicite
-                const loadingDiv = document.getElementById('loading');
-                const loadingText = document.getElementById('loadingText');
-                const startBtn = document.getElementById('startBtn');
-                
-                loadingText.textContent = 'Autoriser les capteurs de mouvement';
-                startBtn.style.display = 'block';
-                startBtn.textContent = 'Autoriser';
-                
-                startBtn.onclick = () => {
+                // On doit attendre que l'utilisateur clique
+                document.addEventListener('click', function requestPermission() {
                     DeviceOrientationEvent.requestPermission()
                         .then(response => {
                             if (response === 'granted') {
-                                window.addEventListener('deviceorientation', onDeviceOrientation, false);
+                                window.addEventListener('deviceorientation', onDeviceOrientation, true);
                                 permissionGranted = true;
-                                loadVideo();
+                                console.log('Permission accordée pour les capteurs');
                             } else {
-                                loadingText.textContent = 'Permission refusée - utilisez la souris';
-                                setTimeout(() => {
-                                    loadingDiv.style.display = 'none';
-                                }, 2000);
+                                console.log('Permission refusée');
                             }
                         })
-                        .catch(console.error);
-                };
+                        .catch(err => {
+                            console.error('Erreur permission:', err);
+                        });
+                    document.removeEventListener('click', requestPermission);
+                }, { once: true });
             } else if (window.DeviceOrientationEvent) {
                 // Android et anciens iOS
-                window.addEventListener('deviceorientation', onDeviceOrientation, false);
+                window.addEventListener('deviceorientation', onDeviceOrientation, true);
                 permissionGranted = true;
+                console.log('Capteurs activés directement');
             }
         }
 
         function onDeviceOrientation(event) {
-            deviceAlpha = event.alpha || 0; // Rotation autour de l'axe Z (0-360)
-            deviceBeta = event.beta || 0;   // Rotation autour de l'axe X (-180 à 180)
-            deviceGamma = event.gamma || 0; // Rotation autour de l'axe Y (-90 à 90)
+            if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
+                deviceAlpha = event.alpha; // Rotation autour de l'axe Z (0-360)
+                deviceBeta = event.beta;   // Rotation autour de l'axe X (-180 à 180)
+                deviceGamma = event.gamma; // Rotation autour de l'axe Y (-90 à 90)
+                
+                if (!permissionGranted) {
+                    permissionGranted = true;
+                    console.log('Capteurs actifs:', deviceAlpha, deviceBeta, deviceGamma);
+                }
+            }
         }
 
         function animate() {

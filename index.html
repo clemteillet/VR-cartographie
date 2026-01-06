@@ -286,20 +286,29 @@
                     console.log('Orientation initiale définie');
                 }
 
-                // Calculer les rotations relatives
-                const alpha = event.alpha - initialOrientation.alpha;
+                // Alpha : rotation autour de Z (compass) - contrôle gauche/droite
+                const alpha = event.alpha;
+                
+                // Beta : inclinaison avant/arrière - contrôle haut/bas
+                // Beta va de -180 à 180, avec 0 quand le téléphone est à plat
                 const beta = event.beta;
+                
+                // Gamma : inclinaison gauche/droite
                 const gamma = event.gamma;
 
-                // Convertir en radians et appliquer à la caméra
-                currentRotationY = THREE.MathUtils.degToRad(alpha);
-                currentRotationX = THREE.MathUtils.degToRad(beta - 90);
+                // Rotation horizontale (gauche/droite) - fonctionne bien
+                currentRotationY = THREE.MathUtils.degToRad(-alpha);
+
+                // Rotation verticale (haut/bas) - correction
+                // Quand le téléphone est vertical (position normale), beta ≈ 90
+                // On veut que la caméra regarde droit devant
+                let verticalAngle = beta - 90;
                 
-                // Ajuster selon l'orientation du téléphone
-                if (Math.abs(gamma) > 45) {
-                    // Mode paysage
-                    currentRotationY = THREE.MathUtils.degToRad(alpha + gamma);
-                }
+                // Inverser le sens si nécessaire et limiter l'angle
+                currentRotationX = THREE.MathUtils.degToRad(-verticalAngle);
+                
+                // Limiter entre -90° et +90°
+                currentRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, currentRotationX));
             }
         }
 

@@ -277,27 +277,54 @@
 
         function handleOrientation(event) {
             if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
-                const alpha = THREE.MathUtils.degToRad(event.alpha || 0);
-                const beta = THREE.MathUtils.degToRad(event.beta || 0);
-                const gamma = THREE.MathUtils.degToRad(event.gamma || 0);
+                // Première lecture - définir l'orientation de base
+                if (baseAlpha === null) {
+                    baseAlpha = event.alpha;
+                    initialOrientation = {
+                        alpha: event.alpha,
+                        beta: event.beta,
+                        gamma: event.gamma
+                    };
+                    console.log('Orientation initiale définie');
+                }
+
+                // Alpha : rotation autour de Z (compass) - contrôle gauche/droite
+                const alpha = event.alpha;
                 
-                // Orientation de l'écran
-                const orient = window.orientation ? THREE.MathUtils.degToRad(window.orientation) : 0;
+                // Beta : inclinaison avant/arrière (-180 à 180)
+                const beta = event.beta;
+                
+                // Gamma : inclinaison gauche/droite (-90 à 90)
+                const gamma = event.gamma;
 
-                // Créer les quaternions pour chaque rotation
-                const zee = new THREE.Vector3(0, 0, 1);
-                const euler = new THREE.Euler();
-                const q0 = new THREE.Quaternion();
-                const q1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); // Rotation initiale
+                // Rotation horizontale (gauche/droite)
+                currentRotationY = THREE.MathUtils.degToRad(-alpha);
 
-                // Appliquer les rotations dans le bon ordre
-                euler.set(beta, alpha, -gamma, 'YXZ');
-                deviceQuaternion.setFromEuler(euler);
-                deviceQuaternion.multiply(q1);
-                deviceQuaternion.multiply(q0.setFromAxisAngle(zee, -orient));
-
-                // Appliquer le quaternion à la caméra
-                camera.quaternion.copy(deviceQuaternion);
+                // Rotation verticale (haut/bas)
+                // Gérer différemment selon la position du téléphone
+                let verticalAngle;
+                
+                if (beta > 0 && beta < 180) {
+                    // Téléphone penché vers l'avant (position normale à plat)
+                    verticalAngle = beta - 90;
+                } else {
+                    // Téléphone penché vers l'arrière
+                    verticalAngle = beta + 90;
+                }
+                
+                // Limiter les valeurs extrêmes pour éviter les flips
+                if (beta > -10 && beta < 10) {
+                    // Presque à plat - regarder vers le haut
+                    verticalAngle = -80;
+                } else if (beta > 170 || beta < -170) {
+                    // Presque à l'envers - regarder vers le bas
+                    verticalAngle = 80;
+                }
+                
+                currentRotationX = THREE.MathUtils.degToRad(-verticalAngle);
+                
+                // Limiter entre -85° et +85° pour éviter le gimbal lock complet
+                currentRotationX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, currentRotationX));
             }
         }
 
@@ -309,8 +336,10 @@
 
             // Mode capteurs mobiles
             if (usingSensors) {
-                // Le quaternion est déjà appliqué directement à la caméra dans handleOrientation
-                // Pas besoin de faire quoi que ce soit ici
+                // Utiliser directement les valeurs calculées dans handleOrientation
+                camera.rotation.y = currentRotationY;
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, currentRotationX));
+                camera.rotation.z = 0;
             } else {
                 // Mode souris/tactile (desktop ou mobile sans capteurs)
                 const targetRotationY = -mouseX * Math.PI;

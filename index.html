@@ -289,26 +289,40 @@
                 // Alpha : rotation autour de Z (compass) - contrôle gauche/droite
                 const alpha = event.alpha;
                 
-                // Beta : inclinaison avant/arrière - contrôle haut/bas
-                // Beta va de -180 à 180, avec 0 quand le téléphone est à plat
+                // Beta : inclinaison avant/arrière (-180 à 180)
                 const beta = event.beta;
                 
-                // Gamma : inclinaison gauche/droite
+                // Gamma : inclinaison gauche/droite (-90 à 90)
                 const gamma = event.gamma;
 
-                // Rotation horizontale (gauche/droite) - fonctionne bien
+                // Rotation horizontale (gauche/droite)
                 currentRotationY = THREE.MathUtils.degToRad(-alpha);
 
-                // Rotation verticale (haut/bas) - correction
-                // Quand le téléphone est vertical (position normale), beta ≈ 90
-                // On veut que la caméra regarde droit devant
-                let verticalAngle = beta - 90;
+                // Rotation verticale (haut/bas)
+                // Gérer différemment selon la position du téléphone
+                let verticalAngle;
                 
-                // Inverser le sens si nécessaire et limiter l'angle
+                if (beta > 0 && beta < 180) {
+                    // Téléphone penché vers l'avant (position normale à plat)
+                    verticalAngle = beta - 90;
+                } else {
+                    // Téléphone penché vers l'arrière
+                    verticalAngle = beta + 90;
+                }
+                
+                // Limiter les valeurs extrêmes pour éviter les flips
+                if (beta > -10 && beta < 10) {
+                    // Presque à plat - regarder vers le haut
+                    verticalAngle = -80;
+                } else if (beta > 170 || beta < -170) {
+                    // Presque à l'envers - regarder vers le bas
+                    verticalAngle = 80;
+                }
+                
                 currentRotationX = THREE.MathUtils.degToRad(-verticalAngle);
                 
-                // Limiter entre -90° et +90°
-                currentRotationX = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, currentRotationX));
+                // Limiter entre -85° et +85° pour éviter le gimbal lock complet
+                currentRotationX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, currentRotationX));
             }
         }
 

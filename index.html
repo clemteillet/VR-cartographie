@@ -58,7 +58,8 @@
 <body>
     <div id="container"></div>
     <div id="instructions">
-        🖱️ Souris pour regarder | 📱 Bougez votre téléphone
+        <span id="instructionText">🖱️ Souris pour regarder | 📱 Bougez votre téléphone</span>
+        <button id="enableSensors" style="display:none; margin-top:10px; padding:8px 15px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;">Activer les capteurs</button>
     </div>
     <div id="loading">
         <div id="loadingText">Chargement de la vidéo...</div>
@@ -73,8 +74,9 @@
         let videos = [];
         let videoTextures = [];
         let isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        let deviceAlpha = 0, deviceBeta = 0, deviceGamma = 0;
-        let permissionGranted = false;
+        let usingSensors = false;
+        let baseAlpha = null;
+        let initialOrientation = null;
 
         // Chemin de votre vidéo sur GitHub
         const VIDEO_PATH = 'Composition3.mp4';
@@ -135,11 +137,12 @@
 
             // Events
             document.addEventListener('mousemove', onMouseMove, false);
+            document.addEventListener('touchmove', onTouchMove, false);
             window.addEventListener('resize', onWindowResize, false);
 
-            // Demander les permissions pour les capteurs mobiles
+            // Configuration des capteurs mobiles
             if (isMobile) {
-                requestDeviceOrientation();
+                setupDeviceOrientation();
             }
 
             // Charger automatiquement la vidéo
@@ -217,49 +220,85 @@
             mouseY = -(event.clientY / window.innerHeight) * 2 + 1;
         }
 
+        function onTouchMove(event) {
+            if (event.touches.length > 0 && !usingSensors) {
+                const touch = event.touches[0];
+                mouseX = (touch.clientX / window.innerWidth) * 2 - 1;
+                mouseY = -(touch.clientY / window.innerHeight) * 2 + 1;
+            }
+        }
+
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function requestDeviceOrientation() {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                // iOS 13+ nécessite une permission explicite
-                // On doit attendre que l'utilisateur clique
-                document.addEventListener('click', function requestPermission() {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(response => {
-                            if (response === 'granted') {
-                                window.addEventListener('deviceorientation', onDeviceOrientation, true);
-                                permissionGranted = true;
-                                console.log('Permission accordée pour les capteurs');
-                            } else {
-                                console.log('Permission refusée');
-                            }
-                        })
-                        .catch(err => {
-                            console.error('Erreur permission:', err);
-                        });
-                    document.removeEventListener('click', requestPermission);
-                }, { once: true });
-            } else if (window.DeviceOrientationEvent) {
-                // Android et anciens iOS
-                window.addEventListener('deviceorientation', onDeviceOrientation, true);
-                permissionGranted = true;
-                console.log('Capteurs activés directement');
+        function setupDeviceOrientation() {
+            const enableBtn = document.getElementById('enableSensors');
+            const instructionText = document.getElementById('instructionText');
+            
+            // Vérifier si on a besoin de demander la permission (iOS 13+)
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
+                
+                // iOS 13+ - afficher le bouton
+                enableBtn.style.display = 'block';
+                instructionText.textContent = '📱 Cliquez sur le bouton pour activer les capteurs';
+                
+                enableBtn.onclick = async () => {
+                    try {
+                        const permission = await DeviceOrientationEvent.requestPermission();
+                        if (permission === 'granted') {
+                            activateDeviceOrientation();
+                            enableBtn.style.display = 'none';
+                            instructionText.textContent = '📱 Bougez votre téléphone pour regarder';
+                        } else {
+                            instructionText.textContent = '❌ Permission refusée - utilisez le tactile';
+                        }
+                    } catch (error) {
+                        console.error('Erreur permission:', error);
+                        instructionText.textContent = '❌ Erreur - utilisez le tactile';
+                    }
+                };
+            } else {
+                // Android ou ancien iOS - activer directement
+                activateDeviceOrientation();
             }
         }
 
-        function onDeviceOrientation(event) {
+        function activateDeviceOrientation() {
+            window.addEventListener('deviceorientation', handleOrientation, true);
+            usingSensors = true;
+            console.log('Capteurs activés');
+        }
+
+        function handleOrientation(event) {
             if (event.alpha !== null && event.beta !== null && event.gamma !== null) {
-                deviceAlpha = event.alpha; // Rotation autour de l'axe Z (0-360)
-                deviceBeta = event.beta;   // Rotation autour de l'axe X (-180 à 180)
-                deviceGamma = event.gamma; // Rotation autour de l'axe Y (-90 à 90)
+                // Première lecture - définir l'orientation de base
+                if (baseAlpha === null) {
+                    baseAlpha = event.alpha;
+                    initialOrientation = {
+                        alpha: event.alpha,
+                        beta: event.beta,
+                        gamma: event.gamma
+                    };
+                    console.log('Orientation initiale définie');
+                }
+
+                // Calculer les rotations relatives
+                const alpha = event.alpha - initialOrientation.alpha;
+                const beta = event.beta;
+                const gamma = event.gamma;
+
+                // Convertir en radians et appliquer à la caméra
+                currentRotationY = THREE.MathUtils.degToRad(alpha);
+                currentRotationX = THREE.MathUtils.degToRad(beta - 90);
                 
-                if (!permissionGranted) {
-                    permissionGranted = true;
-                    console.log('Capteurs actifs:', deviceAlpha, deviceBeta, deviceGamma);
+                // Ajuster selon l'orientation du téléphone
+                if (Math.abs(gamma) > 45) {
+                    // Mode paysage
+                    currentRotationY = THREE.MathUtils.degToRad(alpha + gamma);
                 }
             }
         }
@@ -270,23 +309,14 @@
             // Le cube reste fixe
             cube.rotation.set(0, 0, 0);
 
-            // Si sur mobile avec permission et capteurs actifs
-            if (isMobile && permissionGranted && (deviceAlpha !== 0 || deviceBeta !== 0 || deviceGamma !== 0)) {
-                // Convertir les angles de l'appareil en rotation de caméra
-                const alpha = THREE.MathUtils.degToRad(deviceAlpha);
-                const beta = THREE.MathUtils.degToRad(deviceBeta);
-                const gamma = THREE.MathUtils.degToRad(deviceGamma);
-
-                // Appliquer les rotations du téléphone à la caméra
-                camera.rotation.x = beta - Math.PI / 2;
-                camera.rotation.y = alpha;
-                camera.rotation.z = -gamma;
-                
-                // Limiter la rotation verticale
-                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, camera.rotation.x));
+            // Mode capteurs mobiles
+            if (usingSensors) {
+                // Utiliser directement les valeurs calculées dans handleOrientation
+                camera.rotation.y = currentRotationY;
+                camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, currentRotationX));
+                camera.rotation.z = 0;
             } else {
-                // Mode souris (desktop ou mobile sans capteurs)
-                // Calculer les rotations cibles
+                // Mode souris/tactile (desktop ou mobile sans capteurs)
                 const targetRotationY = -mouseX * Math.PI;
                 const targetRotationX = mouseY * Math.PI * 0.5;
 

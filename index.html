@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Cube Vidéo FPS</title>
     <style>
         body {
@@ -43,7 +43,7 @@
         #loading button {
             margin-top: 15px;
             padding: 10px 20px;
-            background: #4CAF50;
+            background: #4caf50;
             color: white;
             border: none;
             border-radius: 5px;
@@ -59,7 +59,7 @@
     <div id="container"></div>
     <div id="instructions">
         <span id="instructionText">🖱️ Souris pour regarder | 📱 Bougez votre téléphone</span>
-        <button id="enableSensors" style="display:none; margin-top:10px; padding:8px 15px; background:#4CAF50; color:white; border:none; border-radius:5px; cursor:pointer;">Activer les capteurs</button>
+        <button id="enableSensors" style="display:none; margin-top:10px; padding:8px 15px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer;">Activer les capteurs</button>
     </div>
     <div id="loading">
         <div id="loadingText">Chargement de la vidéo...</div>
@@ -77,8 +77,6 @@
         let usingSensors = false;
         let baseAlpha = null;
         let initialOrientation = null;
-        let deviceQuaternion = new THREE.Quaternion();
-        let screenOrientation = 0;
 
         // Chemin de votre vidéo sur GitHub
         const VIDEO_PATH = 'Composition3.mp4';
@@ -297,31 +295,26 @@
                 // Gamma : inclinaison gauche/droite (-90 à 90)
                 const gamma = event.gamma;
 
+                // Inversion des rotations pour téléphone
                 // Rotation horizontale (gauche/droite)
-                currentRotationY = THREE.MathUtils.degToRad(-alpha);
-
+                currentRotationY = THREE.MathUtils.degToRad(alpha);
+                
                 // Rotation verticale (haut/bas)
-                // Gérer différemment selon la position du téléphone
                 let verticalAngle;
                 
                 if (beta > 0 && beta < 180) {
-                    // Téléphone penché vers l'avant (position normale à plat)
                     verticalAngle = beta - 90;
                 } else {
-                    // Téléphone penché vers l'arrière
                     verticalAngle = beta + 90;
                 }
                 
-                // Limiter les valeurs extrêmes pour éviter les flips
                 if (beta > -10 && beta < 10) {
-                    // Presque à plat - regarder vers le haut
                     verticalAngle = -80;
                 } else if (beta > 170 || beta < -170) {
-                    // Presque à l'envers - regarder vers le bas
                     verticalAngle = 80;
                 }
                 
-                currentRotationX = THREE.MathUtils.degToRad(-verticalAngle);
+                currentRotationX = THREE.MathUtils.degToRad(verticalAngle);
                 
                 // Limiter entre -85° et +85° pour éviter le gimbal lock complet
                 currentRotationX = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, currentRotationX));
@@ -336,7 +329,6 @@
 
             // Mode capteurs mobiles
             if (usingSensors) {
-                // Utiliser directement les valeurs calculées dans handleOrientation
                 camera.rotation.y = currentRotationY;
                 camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, currentRotationX));
                 camera.rotation.z = 0;

@@ -14,6 +14,19 @@
             width: 100vw;
             height: 100vh;
         }
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 100;
+            max-width: 90%;
+        }
         #loading {
             position: absolute;
             top: 50%;
@@ -44,6 +57,9 @@
 </head>
 <body>
     <div id="container"></div>
+    <div id="instructions">
+        <button id="enableSensors" style="display:none; margin-top:10px; padding:8px 15px; background:#4caf50; color:white; border:none; border-radius:5px; cursor:pointer;">Activer les capteurs</button>
+    </div>
     <div id="loading">
         <div id="loadingText">Chargement de la vidéo...</div>
         <button id="startBtn" style="display:none;">Cliquez pour démarrer</button>
@@ -198,18 +214,30 @@
         }
 
         function setupDeviceOrientation() {
+            const enableBtn = document.getElementById('enableSensors');
+            const instructionText = document.getElementById('instructionText');
+
             if (typeof DeviceOrientationEvent !== 'undefined' &&
                 typeof DeviceOrientationEvent.requestPermission === 'function') {
 
-                DeviceOrientationEvent.requestPermission()
-                    .then(permission => {
+                enableBtn.style.display = 'block';
+                instructionText.textContent = '📱 Cliquez sur le bouton pour activer les capteurs';
+
+                enableBtn.onclick = async () => {
+                    try {
+                        const permission = await DeviceOrientationEvent.requestPermission();
                         if (permission === 'granted') {
                             activateDeviceOrientation();
+                            enableBtn.style.display = 'none';
+                            instructionText.textContent = '📱 Bougez votre téléphone pour regarder';
+                        } else {
+                            instructionText.textContent = '❌ Permission refusée - utilisez le tactile';
                         }
-                    })
-                    .catch(error => {
+                    } catch (error) {
                         console.error('Erreur permission:', error);
-                    });
+                        instructionText.textContent = '❌ Erreur - utilisez le tactile';
+                    }
+                };
             } else {
                 activateDeviceOrientation();
             }
